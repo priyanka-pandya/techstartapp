@@ -1,0 +1,6 @@
+{
+  "name": "TechStart India",
+  "description": "Free, open-source, mobile-first learning platform for absolute beginners to master computer basics, Windows & Excel, Python programming, debugging, real-world projects, and IT career readiness in English and Hindi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
