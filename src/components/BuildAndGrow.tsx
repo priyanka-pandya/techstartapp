@@ -34,8 +34,8 @@ import {
   getDayOfYearIndex,
 } from '../data/projectsNewsCareer';
 import { PYTHON_LESSONS } from '../data/pythonCourse';
-import { BuildMode, Language, NewsItem, UserProgress } from '../types';
-import { runPythonCode } from '../utils/pythonRunner';
+import { BuildMode, Language, NewsItem, UserProgress, pickText } from '../types';
+import { getFriendlyPythonError, runPythonCode } from '../utils/pythonRunner';
 import { CodeEditorWithToolbar } from './CodeEditorWithToolbar';
 
 interface BuildAndGrowProps {
@@ -75,6 +75,7 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
   onToggleChecklist,
   onBonusXp,
 }) => {
+  const tr = (en: string, hi: string, gu: string) => (lang === 'gu' ? gu : lang === 'hi' ? hi : en);
   const [selectedProjId, setSelectedProjId] = useState(PROJECTS[0].id);
   const [projCodeMap, setProjCodeMap] = useState<Record<string, string>>({});
   const [projOutput, setProjOutput] = useState<string | null>(null);
@@ -174,8 +175,8 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
     const res = runPythonCode(activeProjCode);
     setProjOutput(
       res.error
-        ? `${res.error.type}: ${lang === 'en' ? res.error.friendlyEn : res.error.friendlyHi}`
-        : res.stdout || '(No printed output)'
+        ? `${res.error.type}: ${getFriendlyPythonError(res.error, lang)}`
+        : res.stdout || tr('(No printed output)', '(Koi output print nahi hua)', '(કોઈ આઉટપુટ પ્રિન્ટ થયું નથી)')
     );
   };
 
@@ -184,7 +185,7 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
     if (res.error) {
       setMicroResult({
         passed: false,
-        output: `${res.error.type}: ${lang === 'en' ? res.error.friendlyEn : res.error.friendlyHi}`,
+        output: `${res.error.type}: ${getFriendlyPythonError(res.error, lang)}`,
       });
       return;
     }
@@ -302,7 +303,7 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
     const sheet = CHEAT_SHEETS.find((s) => s.id === sheetId);
     if (!sheet) return;
     const text = `${sheet.title}\n${'='.repeat(sheet.title.length)}\n` +
-      sheet.entries.map((e) => `${e.syntax}  -->  ${e.meaning[lang]}`).join('\n');
+      sheet.entries.map((e) => `${e.syntax}  -->  ${pickText(e.meaning, lang)}`).join('\n');
     navigator.clipboard?.writeText(text);
     setCopiedSheetId(sheetId);
     setTimeout(() => setCopiedSheetId(null), 1800);
@@ -312,7 +313,9 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
     const sheet = CHEAT_SHEETS.find((s) => s.id === sheetId);
     if (!sheet) return;
     const text = `${sheet.title}\n${'='.repeat(sheet.title.length)}\n` +
-      sheet.entries.map((e) => `${e.syntax}\n  ${e.meaning.en} | ${e.meaning.hi}\n`).join('\n');
+      sheet.entries
+        .map((e) => `${e.syntax}\n  EN: ${e.meaning.en}\n  HI: ${e.meaning.hi}${e.meaning.gu ? `\n  GU: ${e.meaning.gu}` : ''}\n`)
+        .join('\n');
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -329,8 +332,10 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
       !q ||
       item.question.en.toLowerCase().includes(q) ||
       item.question.hi.toLowerCase().includes(q) ||
+      (item.question.gu || '').toLowerCase().includes(q) ||
       item.answer.en.toLowerCase().includes(q) ||
-      item.answer.hi.toLowerCase().includes(q);
+      item.answer.hi.toLowerCase().includes(q) ||
+      (item.answer.gu || '').toLowerCase().includes(q);
     return catOk && searchOk;
   });
 
@@ -340,26 +345,31 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
   return (
     <div className="space-y-6">
       {/* Mode Switcher */}
-      <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-fit">
+      <div className="inline-flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-[#121614] border border-slate-200 dark:border-[#222925] max-w-full overflow-x-auto">
         {[
           {
             id: 'projects' as BuildMode,
-            label: lang === 'en' ? 'Real-World Projects (22)' : 'Real Projects (22)',
+            label: tr('Real Projects (22)', 'Real Projects (22)', 'રિયલ પ્રોજેક્ટ્સ (22)'),
             icon: FolderGit2,
           },
           {
             id: 'news' as BuildMode,
-            label: lang === 'en' ? 'Daily Tech Pulse' : 'Daily Tech Pulse',
+            label: tr('Daily Tech Pulse', 'Daily Tech Pulse', 'દૈનિક ટેક પલ્સ'),
             icon: Newspaper,
           },
           {
             id: 'career' as BuildMode,
-            label: lang === 'en' ? 'Career Roadmap' : 'Career Roadmap',
+            label: tr('Career Roadmap', 'Career Roadmap', 'કરિયર રોડમેપ'),
             icon: Briefcase,
           },
           {
-            id: 'interview' as BuildMode,
-            label: lang === 'en' ? 'Cheat Sheets & 50 Q&A' : 'Cheat Sheets & 50 Q&A',
+            id: 'cheatsheets' as BuildMode,
+            label: tr('Cheat Sheets', 'Cheat Sheets', 'ચીટ શીટ્સ'),
+            icon: BookMarked,
+          },
+          {
+            id: 'qa' as BuildMode,
+            label: '50 Q&A',
             icon: GraduationCap,
           },
         ].map((item) => {
@@ -369,13 +379,13 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
               key={item.id}
               type="button"
               onClick={() => onChangeMode(item.id)}
-              className={`min-h-[44px] px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-medium inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 mode === item.id
-                  ? 'bg-white dark:bg-slate-800 text-teal-700 dark:text-teal-300 shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                  ? 'bg-white dark:bg-[#00F59B]/12 text-emerald-700 dark:text-[#00F59B] border border-emerald-500/40 dark:border-[#00E58F]'
+                  : 'text-slate-600 dark:text-[#8A968F] hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="w-3.5 h-3.5" />
               {item.label}
             </button>
           );
@@ -386,9 +396,9 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
       {mode === 'projects' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            <aside className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3">
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 pb-2 border-b border-slate-100 dark:border-slate-800">
-                {lang === 'en' ? 'Interactive Project Guides' : 'Step-by-Step Project Guides'}
+            <aside className="lg:col-span-4 bg-white dark:bg-[#121614] border border-slate-200 dark:border-[#222925] rounded-xl p-4 space-y-3">
+              <h2 className="text-xs font-mono uppercase tracking-wider text-emerald-700 dark:text-[#00F59B] pb-2 border-b border-slate-100 dark:border-[#1E2420]">
+                {tr('Interactive Project Guides', 'Step-by-Step Project Guides', 'સ્ટેપ-બાય-સ્ટેપ પ્રોજેક્ટ ગાઇડ')}
               </h2>
               <div className="space-y-1">
                 {PROJECTS.map((proj) => (
@@ -399,14 +409,14 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
                       setSelectedProjId(proj.id);
                       setProjOutput(null);
                     }}
-                    className={`w-full min-h-[48px] px-3 py-2 rounded-xl text-left cursor-pointer ${
+                    className={`w-full min-h-[48px] px-3 py-2 rounded-lg text-left border transition-colors cursor-pointer ${
                       proj.id === activeProject.id
-                        ? 'bg-teal-50 dark:bg-teal-950/50 text-teal-800 dark:text-teal-200 font-semibold'
-                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-300'
+                        ? 'bg-emerald-50 dark:bg-[#151D19] border-emerald-500/40 dark:border-[#00E58F]/50 text-emerald-900 dark:text-white font-semibold'
+                        : 'border-transparent hover:bg-slate-50 dark:hover:bg-[#171C19] text-slate-700 dark:text-[#98A39D]'
                     }`}
                   >
-                    <div className="text-xs sm:text-sm">{proj.title[lang]}</div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-xs sm:text-sm">{pickText(proj.title, lang)}</div>
+                    <div className="text-[11px] font-mono text-slate-500 dark:text-[#6F7A74]">
                       {proj.level} · {proj.duration}
                     </div>
                   </button>
@@ -414,51 +424,51 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
               </div>
             </aside>
 
-            <article className="lg:col-span-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 space-y-5">
-              <div className="border-b border-slate-100 dark:border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <article className="lg:col-span-8 bg-white dark:bg-[#121614] border border-slate-200 dark:border-[#222925] border-l-[3px] border-l-emerald-600 dark:border-l-[#00F59B] rounded-xl p-5 sm:p-6 space-y-5">
+              <div className="border-b border-slate-100 dark:border-[#1E2420] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                  <div className="text-xs font-mono text-emerald-700 dark:text-[#00F59B]">
                     {activeProject.level} · {activeProject.duration} · {activeProject.topicsUsed.join(' / ')}
                   </div>
-                  <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50 mt-1">
-                    {activeProject.title[lang]}
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-1">
+                    {pickText(activeProject.title, lang)}
                   </h2>
-                  <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">{activeProject.goal[lang]}</p>
+                  <p className="text-sm text-slate-600 dark:text-[#98A39D] mt-1">{pickText(activeProject.goal, lang)}</p>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setShowSkillCardModal(true)}
-                  className="min-h-[44px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs sm:text-sm font-semibold inline-flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer"
+                  className="min-h-[42px] px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 dark:bg-[#00F59B] dark:hover:bg-[#24FFA9] text-white dark:text-[#05130D] font-mono text-xs font-bold inline-flex items-center gap-2 whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <Award className="w-4 h-4" />
-                  {lang === 'en' ? 'Verified Skill Card (PNG)' : 'Skill Card PNG Banayein'}
+                  {tr('Verified Skill Card (PNG)', 'Skill Card PNG Banayein', 'વેરિફાઇડ સ્કિલ કાર્ડ (PNG)')}
                 </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-2">
-                  <h3 className="text-xs font-semibold text-teal-700 dark:text-teal-400">
-                    {lang === 'en' ? 'Step-by-Step Build Plan' : 'Step-by-Step Build Plan'}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#0D100F] border border-slate-200/80 dark:border-[#1F2622] space-y-2">
+                  <h3 className="text-xs font-mono font-semibold text-emerald-700 dark:text-[#00F59B]">
+                    {tr('Step-by-Step Build Plan', 'Step-by-Step Build Plan', 'સ્ટેપ-બાય-સ્ટેપ બિલ્ડ પ્લાન')}
                   </h3>
-                  <ol className="list-decimal pl-5 space-y-1.5 text-xs sm:text-sm text-slate-700 dark:text-slate-200">
+                  <ol className="list-decimal pl-5 space-y-1.5 text-xs sm:text-sm text-slate-700 dark:text-[#A4B0AA]">
                     {activeProject.stepByStepPlan.map((step, i) => (
-                      <li key={i}>{step[lang]}</li>
+                      <li key={i}>{pickText(step, lang)}</li>
                     ))}
                   </ol>
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-2">
-                  <h3 className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-                    {lang === 'en' ? 'Common Bugs & Improvements' : 'Common Bugs aur Improvements'}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#0D100F] border border-slate-200/80 dark:border-[#1F2622] space-y-2">
+                  <h3 className="text-xs font-mono font-semibold text-amber-700 dark:text-amber-400">
+                    {tr('Common Bugs & Improvements', 'Common Bugs aur Improvements', 'સામાન્ય બગ્સ અને સુધારાઓ')}
                   </h3>
-                  <ul className="list-disc pl-5 space-y-1 text-xs sm:text-sm text-slate-700 dark:text-slate-200">
+                  <ul className="list-disc pl-5 space-y-1 text-xs sm:text-sm text-slate-700 dark:text-[#A4B0AA]">
                     {activeProject.commonBugs.map((b, i) => (
-                      <li key={i}>{b[lang]}</li>
+                      <li key={i}>{pickText(b, lang)}</li>
                     ))}
                     {activeProject.improvementIdeas.map((imp, i) => (
-                      <li key={`imp-${i}`} className="text-teal-700 dark:text-teal-300">
-                        Idea: {imp[lang]}
+                      <li key={`imp-${i}`} className="text-emerald-700 dark:text-[#00F59B]">
+                        {tr('Idea:', 'Idea:', 'આઇડિયા:')} {pickText(imp, lang)}
                       </li>
                     ))}
                   </ul>
@@ -469,17 +479,19 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    {lang === 'en'
-                      ? 'Editable Working Prototype — customize numbers & run!'
-                      : 'Editable Working Prototype — apna data badal kar run karein!'}
+                    {tr(
+                      'Editable Working Prototype — customize numbers & run!',
+                      'Editable Working Prototype — apna data badal kar run karein!',
+                      'એડિટેબલ વર્કિંગ પ્રોટોટાઇપ — તમારો ડેટા બદલીને રન કરો!'
+                    )}
                   </span>
                   <button
                     type="button"
                     onClick={handleRunProjectCode}
-                    className="min-h-[40px] px-4 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs sm:text-sm font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                    className="min-h-[38px] px-4 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 dark:bg-[#00F59B] dark:hover:bg-[#24FFA9] text-white dark:text-[#05130D] font-mono text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
                   >
                     <Play className="w-3.5 h-3.5" />
-                    {lang === 'en' ? 'Run Prototype' : 'Prototype Run Karein'}
+                    {tr('Run Prototype', 'Prototype Run Karein', 'પ્રોટોટાઇપ રન કરો')}
                   </button>
                 </div>
 
@@ -499,7 +511,7 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
                     });
                     setProjOutput(null);
                   }}
-                  resetLabel={lang === 'en' ? 'Reset' : 'Reset'}
+                  resetLabel={tr('Reset', 'Reset', 'રીસેટ')}
                   rows={10}
                   lang={lang}
                   filename={`${activeProject.id}.py`}
@@ -507,44 +519,50 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
                 />
 
                 {projOutput !== null && (
-                  <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-emerald-400 whitespace-pre-wrap">
+                  <div className="p-3.5 rounded-xl bg-[#090C0B] border border-[#222925] text-xs font-mono text-[#00F59B] whitespace-pre-wrap">
                     {projOutput}
                   </div>
                 )}
               </div>
 
-              <div className="p-4 rounded-xl bg-teal-50/70 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 text-xs sm:text-sm text-slate-800 dark:text-slate-200 space-y-1">
+              <div className="p-4 rounded-xl bg-emerald-50/70 dark:bg-[#0D1411] border border-emerald-200 dark:border-[#1E3329] text-xs sm:text-sm text-slate-800 dark:text-[#B9C4BE] space-y-1">
                 <div>
-                  <strong>GitHub Upload Guide:</strong> {activeProject.githubGuide[lang]}
+                  <strong className="text-emerald-800 dark:text-[#00F59B]">
+                    {tr('GitHub Upload Guide:', 'GitHub Upload Guide:', 'GitHub અપલોડ ગાઇડ:')}
+                  </strong>{' '}
+                  {pickText(activeProject.githubGuide, lang)}
                 </div>
                 <div>
-                  <strong>Code Explanation:</strong> {activeProject.codeExplanation[lang]}
+                  <strong className="text-emerald-800 dark:text-[#00F59B]">
+                    {tr('Code Explanation:', 'Code Explanation:', 'કોડની સમજૂતી:')}
+                  </strong>{' '}
+                  {pickText(activeProject.codeExplanation, lang)}
                 </div>
               </div>
             </article>
           </div>
 
           {/* Complete 22 Project Catalog */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white dark:bg-[#121614] border border-slate-200 dark:border-[#222925] rounded-xl p-5 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50 mb-3">
-                {lang === 'en' ? 'Beginner Project Track (10 Projects)' : 'Beginner Project Track (10 Projects)'}
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">
+                {tr('Beginner Project Track (10 Projects)', 'Beginner Project Track (10 Projects)', 'બિગિનર પ્રોજેક્ટ ટ્રેક (10 પ્રોજેક્ટ્સ)')}
               </h3>
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-slate-700 dark:text-[#A4B0AA]">
                 {ALL_PROJECT_TITLES.beginner.map((name, i) => (
-                  <li key={name} className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60">
+                  <li key={name} className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0D100F] border border-slate-200/60 dark:border-[#1E2420]">
                     {i + 1}. {name}
                   </li>
                 ))}
               </ul>
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-50 mb-3">
-                {lang === 'en' ? 'Intermediate Project Track (12 Projects)' : 'Intermediate Project Track (12 Projects)'}
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">
+                {tr('Intermediate Project Track (12 Projects)', 'Intermediate Project Track (12 Projects)', 'ઇન્ટરમીડિયેટ પ્રોજેક્ટ ટ્રેક (12 પ્રોજેક્ટ્સ)')}
               </h3>
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-slate-700 dark:text-[#A4B0AA]">
                 {ALL_PROJECT_TITLES.intermediate.map((name, i) => (
-                  <li key={name} className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60">
+                  <li key={name} className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0D100F] border border-slate-200/60 dark:border-[#1E2420]">
                     {i + 1}. {name}
                   </li>
                 ))}
@@ -560,48 +578,48 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
           {/* Date-Rotated Daily Fact + Tip + Playable 60-Second Micro-Challenge */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-3">
+              <div className="p-5 rounded-xl bg-white dark:bg-[#121614] border border-slate-200 dark:border-[#222925] flex flex-col justify-between gap-3">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-xs font-semibold text-teal-700 dark:text-teal-400 flex items-center gap-1.5">
+                    <div className="text-xs font-mono font-semibold text-emerald-700 dark:text-[#00F59B] flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5" />
-                      {lang === 'en' ? "Today's Tech Fact" : 'Aaj ka Tech Fact'}
+                      {tr("Today's Tech Fact", 'Aaj ka Tech Fact', 'આજનું ટેક ફેક્ટ')}
                     </div>
-                    <span className="text-[11px] font-mono text-slate-400">
+                    <span className="text-[11px] font-mono text-slate-400 tabular-nums">
                       #{((dayIndex + factOffset) % DAILY_TECH_FACTS.length) + 1}/{DAILY_TECH_FACTS.length}
                     </span>
                   </div>
-                  <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed">{dailyFact[lang]}</p>
+                  <p className="text-sm text-slate-800 dark:text-[#D5DDD8] leading-relaxed">{pickText(dailyFact, lang)}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setFactOffset((n) => n + 1)}
-                  className="text-xs font-semibold text-teal-700 dark:text-teal-400 hover:underline self-start cursor-pointer"
+                  className="text-xs font-mono font-semibold text-emerald-700 dark:text-[#00F59B] hover:underline self-start cursor-pointer"
                 >
-                  {lang === 'en' ? 'Next Tech Fact ->' : 'Agla Tech Fact ->'}
+                  {tr('Next Tech Fact ->', 'Agla Tech Fact ->', 'આગળનું ટેક ફેક્ટ ->')}
                 </button>
               </div>
-              <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
-                <div className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-                  {lang === 'en' ? "Today's Career Tip" : 'Aaj ki Career Tip'}
+              <div className="p-5 rounded-xl bg-white dark:bg-[#121614] border border-slate-200 dark:border-[#222925] space-y-2">
+                <div className="text-xs font-mono font-semibold text-amber-700 dark:text-amber-400">
+                  {tr("Today's Career Tip", 'Aaj ki Career Tip', 'આજની કરિયર ટિપ')}
                 </div>
-                <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed">{dailyTip[lang]}</p>
+                <p className="text-sm text-slate-800 dark:text-[#D5DDD8] leading-relaxed">{pickText(dailyTip, lang)}</p>
               </div>
             </div>
 
-            <div className="lg:col-span-6 p-5 rounded-2xl bg-teal-50/70 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 space-y-3">
+            <div className="lg:col-span-6 p-5 rounded-xl bg-emerald-50/70 dark:bg-[#121614] border border-emerald-200 dark:border-[#222925] border-l-[3px] border-l-emerald-600 dark:border-l-[#00F59B] space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-xs font-semibold text-teal-800 dark:text-teal-300 flex items-center gap-1.5">
+                <div className="text-xs font-mono font-semibold text-emerald-800 dark:text-[#00F59B] flex items-center gap-1.5">
                   <Rocket className="w-3.5 h-3.5" />
-                  {dailyMicro.title[lang]}
+                  {pickText(dailyMicro.title, lang)}
                 </div>
                 {microClaimed && (
-                  <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-                    {lang === 'en' ? '+15 Daily XP Claimed' : '+15 Daily XP Mil Chuka Hai'}
+                  <span className="text-[11px] font-mono font-semibold text-emerald-700 dark:text-[#00F59B]">
+                    {tr('+15 Daily XP Claimed', '+15 Daily XP Mil Chuka Hai', '+15 દૈનિક XP મળી ગયા')}
                   </span>
                 )}
               </div>
-              <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200">{dailyMicro.prompt[lang]}</p>
+              <p className="text-xs sm:text-sm text-slate-800 dark:text-[#D5DDD8]">{pickText(dailyMicro.prompt, lang)}</p>
 
               <CodeEditorWithToolbar
                 value={microCode}
@@ -620,26 +638,22 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
                 <button
                   type="button"
                   onClick={handleRunDailyMicro}
-                  className="min-h-[40px] px-4 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                  className="min-h-[38px] px-4 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 dark:bg-[#00F59B] dark:hover:bg-[#24FFA9] text-white dark:text-[#05130D] font-mono text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   <Play className="w-3.5 h-3.5" />
                   {microClaimed
-                    ? lang === 'en'
-                      ? 'Run & Verify'
-                      : 'Run & Check'
-                    : lang === 'en'
-                    ? 'Run & Claim +15 XP'
-                    : 'Run & +15 XP Payein'}
+                    ? tr('Run & Verify', 'Run & Check', 'રન અને ચકાસો')
+                    : tr('Run & Claim +15 XP', 'Run & +15 XP Payein', 'રન કરો અને +15 XP મેળવો')}
                 </button>
                 {microResult && (
                   <span
-                    className={`text-xs font-semibold ${
-                      microResult.passed ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'
+                    className={`text-xs font-mono font-semibold ${
+                      microResult.passed ? 'text-emerald-700 dark:text-[#00F59B]' : 'text-rose-700 dark:text-rose-400'
                     }`}
                   >
                     {microResult.passed
-                      ? `${lang === 'en' ? 'Solved! Output:' : 'Sahi jawab! Output:'} ${microResult.output}`
-                      : `${lang === 'en' ? 'Output:' : 'Output:'} ${microResult.output} (Expected: ${dailyMicro.expectedOutput})`}
+                      ? `${tr('Solved! Output:', 'Sahi jawab! Output:', 'સાચો જવાબ! આઉટપુટ:')} ${microResult.output}`
+                      : `${tr('Output:', 'Output:', 'આઉટપુટ:')} ${microResult.output} (${tr('Expected:', 'Expected:', 'અપેક્ષિત:')} ${dailyMicro.expectedOutput})`}
                   </span>
                 )}
               </div>
@@ -650,33 +664,37 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-0.5">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">
-                  {lang === 'en' ? `Today’s Tech Headlines · ${newsDateLabel}` : `Aaj ki Tech News · ${newsDateLabel}`}
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  {tr(
+                    `Today’s Tech Headlines · ${newsDateLabel}`,
+                    `Aaj ki Tech News · ${newsDateLabel}`,
+                    `આજના ટેક સમાચાર · ${newsDateLabel}`
+                  )}
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-xs text-slate-500 dark:text-[#8A968F]">
                   {newsIsLive
-                    ? lang === 'en'
-                      ? 'Auto-updated live from global & Indian tech feeds based on today’s date'
-                      : 'Aaj ki date ke hisab se global aur Indian tech feeds se auto-updated'
-                    : lang === 'en'
-                    ? 'Daily India & World Tech Wire (auto-rotates by today’s date even offline)'
-                    : 'Daily India & World Tech Wire (offline mein bhi aaj ki date ke hisab se updated)'}
+                    ? tr(
+                        'Auto-updated live from global & Indian tech feeds based on today’s date',
+                        'Aaj ki date ke hisab se global aur Indian tech feeds se auto-updated',
+                        'આજની તારીખ મુજબ વૈશ્વિક અને ભારતીય ટેક ફીડ્સમાંથી લાઇવ અપડેટેડ'
+                      )
+                    : tr(
+                        'Daily India & World Tech Wire (auto-rotates by today’s date even offline)',
+                        'Daily India & World Tech Wire (offline mein bhi aaj ki date ke hisab se updated)',
+                        'દૈનિક ભારત અને વિશ્વ ટેક વાયર (ઓફલાઇનમાં પણ આજની તારીખ મુજબ અપડેટેડ)'
+                      )}
                 </p>
               </div>
               <button
                 type="button"
                 disabled={newsLoading}
                 onClick={() => loadDailyNews(true)}
-                className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                className="min-h-[38px] px-3.5 py-1.5 rounded-md bg-white dark:bg-[#121614] border border-slate-200 dark:border-[#242B27] hover:border-[#00E58F]/60 font-mono text-xs font-semibold text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${newsLoading ? 'animate-spin' : ''}`} />
                 {newsLoading
-                  ? lang === 'en'
-                    ? 'Updating...'
-                    : 'Update ho raha hai...'
-                  : lang === 'en'
-                  ? 'Refresh Today’s News'
-                  : 'Aaj ki News Refresh Karein'}
+                  ? tr('Updating...', 'Update ho raha hai...', 'અપડેટ થઈ રહ્યું છે...')
+                  : tr('Refresh Today’s News', 'Aaj ki News Refresh Karein', 'આજના સમાચાર રિફ્રેશ કરો')}
               </button>
             </div>
 
@@ -686,10 +704,10 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
                   key={cat}
                   type="button"
                   onClick={() => setNewsCategory(cat)}
-                  className={`min-h-[38px] px-3.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer ${
+                  className={`min-h-[36px] px-3 py-1 rounded-md font-mono text-xs font-medium border cursor-pointer ${
                     newsCategory === cat
-                      ? 'bg-teal-600 text-white'
-                      : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
+                      ? 'bg-emerald-600 dark:bg-[#00F59B]/12 border-emerald-600 dark:border-[#00E58F] text-white dark:text-[#00F59B]'
+                      : 'bg-white dark:bg-[#121614] border-slate-200 dark:border-[#222925] text-slate-600 dark:text-[#8A968F]'
                   }`}
                 >
                   {cat}
@@ -703,10 +721,12 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
               );
               if (filteredNews.length === 0) {
                 return (
-                  <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-300">
-                    {lang === 'en'
-                      ? 'No headlines in this category right now. Tap "All" or "Refresh Today’s News".'
-                      : 'Is category mein abhi koi headline nahi hai. "All" par click karein.'}
+                  <div className="p-6 rounded-xl bg-white dark:bg-[#121614] border border-slate-200 dark:border-[#222925] text-sm text-slate-600 dark:text-[#98A39D]">
+                    {tr(
+                      'No headlines in this category right now. Tap "All" or "Refresh Today’s News".',
+                      'Is category mein abhi koi headline nahi hai. "All" par click karein.',
+                      'આ કેટેગરીમાં હમણાં કોઈ સમાચાર નથી. "All" પર ક્લિક કરો.'
+                    )}
                   </div>
                 );
               }
@@ -715,45 +735,45 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
                   {filteredNews.map((item) => (
                     <article
                       key={item.id}
-                      className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between gap-4"
+                      className="p-5 rounded-xl bg-white dark:bg-[#121614] border border-slate-200 dark:border-[#222925] flex flex-col justify-between gap-4"
                     >
                       <div className="space-y-2.5">
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                        <div className="text-xs font-mono text-slate-500 dark:text-[#7D8882] tabular-nums">
                           {item.category} · {item.date} · {item.readTime}
                         </div>
-                        <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-50 leading-snug">
-                          {item.title[lang]}
+                        <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-snug">
+                          {pickText(item.title, lang)}
                         </h3>
-                        <div className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/70 text-xs font-mono font-semibold text-teal-700 dark:text-teal-300">
+                        <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0D100F] border border-slate-200/70 dark:border-[#1E2420] text-xs font-mono font-semibold text-emerald-700 dark:text-[#00F59B]">
                           {item.highlightStat}
                         </div>
-                        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                          {item.summary[lang]}
+                        <p className="text-sm text-slate-600 dark:text-[#98A39D] leading-relaxed">
+                          {pickText(item.summary, lang)}
                         </p>
                         {item.companySummary && (
-                          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-200 leading-relaxed">
-                            <strong className="text-teal-700 dark:text-teal-400">
-                              {lang === 'en' ? 'Company & Context: ' : 'Company / Topic Samjhein: '}
+                          <div className="p-3 rounded-lg bg-slate-50 dark:bg-[#0D100F] border border-slate-200/80 dark:border-[#1E2420] text-xs text-slate-700 dark:text-[#B5C0BA] leading-relaxed">
+                            <strong className="text-emerald-700 dark:text-[#00F59B]">
+                              {tr('Company & Context: ', 'Company / Topic Samjhein: ', 'કંપની અને સંદર્ભ: ')}
                             </strong>
-                            {item.companySummary[lang]}
+                            {pickText(item.companySummary, lang)}
                           </div>
                         )}
-                        <p className="text-xs text-slate-700 dark:text-slate-200 pt-1">
+                        <p className="text-xs text-slate-700 dark:text-[#B5C0BA] pt-1">
                           <strong className="text-amber-700 dark:text-amber-400">
-                            {lang === 'en' ? 'Why it matters: ' : 'Ye kyun zaroori hai: '}
+                            {tr('Why it matters: ', 'Ye kyun zaroori hai: ', 'આ કેમ મહત્વનું છે: ')}
                           </strong>
-                          {item.whyItMatters[lang]}
+                          {pickText(item.whyItMatters, lang)}
                         </p>
                       </div>
-                      <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100 dark:border-slate-800">
-                        <span className="text-slate-500">{item.sourceName}</span>
+                      <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100 dark:border-[#1E2420]">
+                        <span className="text-slate-500 font-mono">{item.sourceName}</span>
                         <a
                           href={item.externalUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-teal-700 dark:text-teal-400 font-semibold inline-flex items-center gap-1 hover:underline"
+                          className="text-emerald-700 dark:text-[#00F59B] font-mono font-semibold inline-flex items-center gap-1 hover:underline"
                         >
-                          {lang === 'en' ? 'Read more' : 'Poora padhein'}
+                          {tr('Read more', 'Poora padhein', 'પૂરું વાંચો')}
                           <ExternalLink className="w-3.5 h-3.5" />
                         </a>
                       </div>
@@ -766,28 +786,28 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
 
           {/* Indian Self-Taught Developer Stories */}
           <div className="space-y-3">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">
-              {lang === 'en' ? 'Indian Self-Taught Tech Journeys' : 'Indian Self-Taught Tech Journeys'}
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              {tr('Indian Self-Taught Tech Journeys', 'Indian Self-Taught Tech Journeys', 'ભારતીય સેલ્ફ-ટોટ ટેક સફળતાની વાર્તાઓ')}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {SUCCESS_STORIES.map((st) => (
                 <div
                   key={st.id}
-                  className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2.5"
+                  className="p-5 rounded-xl bg-white dark:bg-[#121614] border border-slate-200 dark:border-[#222925] space-y-2.5"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">
-                      <UserCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                    <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <UserCheck className="w-4 h-4 text-emerald-600 dark:text-[#00F59B]" />
                       {st.name}
                     </div>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs font-mono text-slate-500 dark:text-[#7D8882]">
                       {st.city} · {st.role}
                     </span>
                   </div>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{st.background[lang]}</p>
-                  <p className="text-sm text-slate-700 dark:text-slate-300">{st.journey[lang]}</p>
-                  <p className="text-xs font-semibold text-teal-700 dark:text-teal-400 pt-1">
-                    “{st.advice[lang]}”
+                  <p className="text-xs font-medium text-slate-500 dark:text-[#8A968F]">{pickText(st.background, lang)}</p>
+                  <p className="text-sm text-slate-700 dark:text-[#B5C0BA]">{pickText(st.journey, lang)}</p>
+                  <p className="text-xs font-semibold text-emerald-700 dark:text-[#00F59B] pt-1">
+                    “{pickText(st.advice, lang)}”
                   </p>
                 </div>
               ))}
@@ -796,33 +816,40 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
         </div>
       )}
 
-      {/* MODULE 8: CAREER ROADMAP */}
+      {/* MODULE 8: CAREER ROADMAP (SYS_PATH architectural cards matching reference screenshot) */}
       {mode === 'career' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {CAREER_TRACKS.map((track) => (
+        <div className="space-y-5">
+          <div className="space-y-4">
+            {CAREER_TRACKS.map((track, idx) => (
               <div
                 key={track.id}
-                className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4"
+                className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#121614] border border-slate-200 dark:border-[#222925] border-l-[3px] border-l-emerald-600 dark:border-l-[#00F59B] space-y-3.5"
               >
-                <div className="space-y-1">
-                  <div className="text-xs text-teal-700 dark:text-teal-400 font-medium">
-                    {track.timelineMonths} · {track.entryRoles.join(' / ')}
+                <div className="space-y-1.5">
+                  <div className="text-xs font-mono font-semibold tracking-wider text-emerald-700 dark:text-[#00F59B] uppercase">
+                    SYS_PATH_0{idx + 1} // {track.timelineMonths.replace(/months/i, 'MO')}
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-slate-50">{track.title[lang]}</h3>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">
-                    Skills: {track.coreSkills.join(' · ')}
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+                    {pickText(track.title, lang)}
+                  </h3>
+                  <div className="text-xs font-mono text-slate-500 dark:text-[#7A857F]">
+                    {track.entryRoles.join(' / ')} · {track.coreSkills.join(' · ')}
                   </div>
                 </div>
 
-                <ol className="list-decimal pl-5 space-y-1.5 text-sm text-slate-700 dark:text-slate-300">
-                  {track.firstSteps.map((s, idx) => (
-                    <li key={idx}>{s[lang]}</li>
+                <ul className="space-y-1.5 text-sm text-slate-700 dark:text-[#8E9993]">
+                  {track.firstSteps.map((s, sIdx) => (
+                    <li key={sIdx} className="flex items-start gap-2.5">
+                      <span className="text-emerald-600 dark:text-[#00F59B] select-none">•</span>
+                      <span>{pickText(s, lang)}</span>
+                    </li>
                   ))}
-                </ol>
+                </ul>
 
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-600 dark:text-slate-300">
-                  <strong>{lang === 'en' ? 'Free Certifications:' : 'Free Certifications:'}</strong>{' '}
+                <div className="pt-2 border-t border-slate-100 dark:border-[#1E2420] text-xs font-mono text-slate-600 dark:text-[#7D8882]">
+                  <strong className="text-slate-800 dark:text-[#C8D3CD]">
+                    {tr('Free Certifications:', 'Free Certifications:', 'મફત સર્ટિફિકેશન:')}
+                  </strong>{' '}
                   {track.freeCerts.join(' · ')}
                 </div>
               </div>
@@ -830,16 +857,20 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
           </div>
 
           {/* Job-Ready Interactive Checklist */}
-          <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
+          <div className="p-5 sm:p-6 rounded-xl bg-white dark:bg-[#121614] border border-slate-200 dark:border-[#222925] space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-50">
-                {lang === 'en' ? 'Job-Ready Resume, GitHub & Portfolio Checklist' : 'Job-Ready Resume & GitHub Checklist'}
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                {tr(
+                  'Job-Ready Resume, GitHub & Portfolio Checklist',
+                  'Job-Ready Resume & GitHub Checklist',
+                  'જોબ-રેડી રિઝ્યુમ, GitHub અને પોર્ટફોલિયો ચેકલિસ્ટ'
+                )}
               </h3>
-              <span className="text-xs font-mono tabular-nums text-teal-600 dark:text-teal-400">
+              <span className="text-xs font-mono tabular-nums text-emerald-700 dark:text-[#00F59B]">
                 {progress.completedChecklistIds.length}/{JOB_READY_CHECKLIST.length}
               </span>
             </div>
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            <div className="divide-y divide-slate-100 dark:divide-[#1E2420]">
               {JOB_READY_CHECKLIST.map((item) => {
                 const checked = progress.completedChecklistIds.includes(item.id);
                 return (
@@ -850,16 +881,16 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
                     className="w-full min-h-[48px] py-3 flex items-center gap-3 text-left cursor-pointer"
                   >
                     {checked ? (
-                      <CheckSquare className="w-5 h-5 text-teal-600 dark:text-teal-400 shrink-0" />
+                      <CheckSquare className="w-5 h-5 text-emerald-600 dark:text-[#00F59B] shrink-0" />
                     ) : (
-                      <Square className="w-5 h-5 text-slate-400 shrink-0" />
+                      <Square className="w-5 h-5 text-slate-400 dark:text-[#6F7A74] shrink-0" />
                     )}
                     <span
                       className={`text-sm ${
-                        checked ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'
+                        checked ? 'line-through text-slate-400 dark:text-[#5B6660]' : 'text-slate-800 dark:text-[#D5DDD8]'
                       }`}
                     >
-                      {item.text[lang]}
+                      {pickText(item.text, lang)}
                     </span>
                   </button>
                 );
@@ -869,21 +900,21 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
         </div>
       )}
 
-      {/* MODULE 9: CHEAT SHEETS & TOP 50 INTERVIEW Q&A FLASHCARDS */}
-      {mode === 'interview' && (
-        <div className="space-y-8">
-          {/* Section A: Downloadable Cheat Sheets */}
-          <section className="space-y-4">
+      {/* MODULE 9A: CHEAT SHEETS */}
+      {mode === 'cheatsheets' && (
+        <section className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">
-                  <BookMarked className="w-5 h-5 text-teal-600 dark:text-teal-400" />
-                  {lang === 'en' ? 'Quick Revision Cheat Sheets' : 'Quick Revision Cheat Sheets'}
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <BookMarked className="w-5 h-5 text-emerald-600 dark:text-[#00F59B]" />
+                  {tr('Quick Revision Cheat Sheets', 'Quick Revision Cheat Sheets', 'ઝડપી રિવિઝન ચીટ શીટ્સ')}
                 </h2>
-                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-                  {lang === 'en'
-                    ? 'Copy or download one-page summaries for Python, OOP/DSA, Excel, and Git.'
-                    : 'Interview se pehle Python, OOP/DSA, Excel aur Git ki quick sheet revise ya download karein.'}
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-[#8A968F]">
+                  {tr(
+                    'Copy or download one-page summaries for Python, OOP/DSA, Excel, and Git.',
+                    'Interview se pehle Python, OOP/DSA, Excel aur Git ki quick sheet revise ya download karein.',
+                    'ઇન્ટરવ્યુ પહેલાં Python, OOP/DSA, Excel અને Git ની ઝડપી ચીટ શીટ રિવાઇઝ અથવા ડાઉનલોડ કરો.'
+                  )}
                 </p>
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -892,10 +923,10 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
                     key={cat}
                     type="button"
                     onClick={() => setSheetCategory(cat)}
-                    className={`min-h-[36px] px-3 py-1 rounded-lg text-xs font-medium cursor-pointer ${
+                    className={`min-h-[36px] px-3 py-1 rounded-md font-mono text-xs font-medium border cursor-pointer ${
                       sheetCategory === cat
-                        ? 'bg-teal-600 text-white'
-                        : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
+                        ? 'bg-emerald-600 dark:bg-[#00F59B]/12 border-emerald-600 dark:border-[#00E58F] text-white dark:text-[#00F59B]'
+                        : 'bg-white dark:bg-[#121614] border-slate-200 dark:border-[#222925] text-slate-600 dark:text-[#8A968F]'
                     }`}
                   >
                     {cat}
@@ -908,28 +939,28 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
               {CHEAT_SHEETS.filter((s) => sheetCategory === 'All' || s.category === sheetCategory).map((sheet) => (
                 <div
                   key={sheet.id}
-                  className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3"
+                  className="p-5 rounded-xl bg-white dark:bg-[#121614] border border-slate-200 dark:border-[#222925] space-y-3"
                 >
-                  <div className="flex items-start justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-start justify-between gap-2 pb-2 border-b border-slate-100 dark:border-[#1E2420]">
                     <div>
-                      <div className="text-[11px] font-semibold text-teal-700 dark:text-teal-400">
+                      <div className="text-[11px] font-mono font-semibold text-emerald-700 dark:text-[#00F59B]">
                         {sheet.category}
                       </div>
-                      <h3 className="text-base font-bold text-slate-900 dark:text-slate-50">{sheet.title}</h3>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">{sheet.title}</h3>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         type="button"
                         onClick={() => handleCopySheet(sheet.id)}
-                        className="min-h-[34px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 cursor-pointer"
+                        className="min-h-[34px] px-2.5 py-1 rounded-md bg-slate-100 dark:bg-[#181D1A] border border-slate-200 dark:border-[#262E29] text-xs font-mono text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 cursor-pointer"
                       >
-                        {copiedSheetId === sheet.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                        {copiedSheetId === sheet.id ? 'Copied' : 'Copy'}
+                        {copiedSheetId === sheet.id ? <Check className="w-3.5 h-3.5 text-[#00F59B]" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedSheetId === sheet.id ? tr('Copied', 'Copied', 'કોપી થયું') : tr('Copy', 'Copy', 'કોપી')}
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDownloadSheet(sheet.id)}
-                        className="min-h-[34px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 cursor-pointer"
+                        className="min-h-[34px] px-2.5 py-1 rounded-md bg-slate-100 dark:bg-[#181D1A] border border-slate-200 dark:border-[#262E29] text-xs font-mono text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 cursor-pointer"
                       >
                         <Download className="w-3.5 h-3.5" />
                         .txt
@@ -939,32 +970,38 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
 
                   <div className="space-y-2">
                     {sheet.entries.map((entry, idx) => (
-                      <div key={idx} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 space-y-1">
-                        <pre className="text-xs font-mono text-teal-800 dark:text-teal-300 whitespace-pre-wrap">
+                      <div key={idx} className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#0D100F] border border-slate-200/60 dark:border-[#1E2420] space-y-1">
+                        <pre className="text-xs font-mono text-emerald-700 dark:text-[#00F59B] whitespace-pre-wrap">
                           {entry.syntax}
                         </pre>
-                        <div className="text-xs text-slate-600 dark:text-slate-300">{entry.meaning[lang]}</div>
+                        <div className="text-xs text-slate-600 dark:text-[#98A39D]">{pickText(entry.meaning, lang)}</div>
                       </div>
                     ))}
                   </div>
                 </div>
               ))}
             </div>
-          </section>
+        </section>
+      )}
 
-          {/* Section B: Top 50 Interview Q&A Flashcards */}
+      {/* MODULE 9B: TOP 50 INTERVIEW Q&A FLASHCARDS */}
+      {mode === 'qa' && (
           <section className="space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-50">
-                  {lang === 'en'
-                    ? `Top ${INTERVIEW_QA.length} Entry-Level IT Interview Q&A`
-                    : `Top ${INTERVIEW_QA.length} Fresher IT Interview Q&A Flashcards`}
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  {tr(
+                    `Top ${INTERVIEW_QA.length} Entry-Level IT Interview Q&A`,
+                    `Top ${INTERVIEW_QA.length} Fresher IT Interview Q&A Flashcards`,
+                    `ટોચના ${INTERVIEW_QA.length} ફ્રેશર IT ઇન્ટરવ્યુ Q&A ફ્લેશકાર્ડ્સ`
+                  )}
                 </h2>
-                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-                  {lang === 'en'
-                    ? 'Quiz yourself with the focus deck first, then browse or search all 50 cards below.'
-                    : 'Pehle Focus Deck par khud ko test karein, ya neeche kisi bhi card ko tap kar ke answer dekhein.'}
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-[#8A968F]">
+                  {tr(
+                    'Quiz yourself with the focus deck first, then browse or search all 50 cards below.',
+                    'Pehle Focus Deck par khud ko test karein, ya neeche kisi bhi card ko tap kar ke answer dekhein.',
+                    'પહેલાં ફોકસ ડેક પર તમારી જાતને ટેસ્ટ કરો, અથવા નીચે કોઈપણ કાર્ડ પર ટેપ કરીને જવાબ જુઓ.'
+                  )}
                 </p>
               </div>
 
@@ -978,8 +1015,8 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
                     setDeckIndex(0);
                     setDeckFlipped(false);
                   }}
-                  placeholder={lang === 'en' ? 'Search Python, OOP, Excel...' : 'Search Python, OOP, Excel...'}
-                  className="w-full min-h-[40px] pl-9 pr-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs sm:text-sm text-slate-800 dark:text-slate-100"
+                  placeholder={tr('Search Python, OOP, Excel...', 'Search Python, OOP, Excel...', 'શોધો (Python, OOP, Excel)...')}
+                  className="w-full min-h-[40px] pl-9 pr-3 py-2 rounded-lg bg-white dark:bg-[#121614] border border-slate-200 dark:border-[#242B27] text-xs sm:text-sm text-slate-800 dark:text-white"
                 />
               </div>
             </div>
@@ -994,10 +1031,10 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
                     setDeckIndex(0);
                     setDeckFlipped(false);
                   }}
-                  className={`min-h-[38px] px-3.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer ${
+                  className={`min-h-[36px] px-3 py-1 rounded-md font-mono text-xs font-medium border cursor-pointer ${
                     qaCategory === cat
-                      ? 'bg-teal-600 text-white'
-                      : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
+                      ? 'bg-emerald-600 dark:bg-[#00F59B]/12 border-emerald-600 dark:border-[#00E58F] text-white dark:text-[#00F59B]'
+                      : 'bg-white dark:bg-[#121614] border-slate-200 dark:border-[#222925] text-slate-600 dark:text-[#8A968F]'
                   }`}
                 >
                   {cat}
@@ -1007,25 +1044,25 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
 
             {/* Interactive Flashcard Focus Deck */}
             {deckCard && (
-              <div className="p-5 sm:p-6 rounded-2xl bg-slate-900 text-slate-100 border border-teal-500/40 space-y-4">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span className="font-semibold text-teal-400">
-                    {deckCard.category} · Focus Flashcard
+              <div className="p-5 sm:p-6 rounded-xl bg-slate-900 dark:bg-[#121614] text-slate-100 border border-[#222925] border-l-[3px] border-l-[#00F59B] space-y-4">
+                <div className="flex items-center justify-between text-xs font-mono text-slate-400">
+                  <span className="font-semibold text-[#00F59B]">
+                    {deckCard.category} · {tr('Focus Flashcard', 'Focus Flashcard', 'ફોકસ ફ્લેશકાર્ડ')}
                   </span>
-                  <span className="font-mono tabular-nums">
+                  <span className="tabular-nums">
                     {safeDeckIdx + 1} / {filteredQa.length}
                   </span>
                 </div>
 
                 <h3 className="text-base sm:text-xl font-bold text-white leading-snug">
-                  {deckCard.question[lang]}
+                  {pickText(deckCard.question, lang)}
                 </h3>
 
                 {deckFlipped && (
-                  <div className="p-4 rounded-xl bg-slate-800/80 border border-slate-700 space-y-2.5">
-                    <p className="text-sm text-slate-100 leading-relaxed">{deckCard.answer[lang]}</p>
+                  <div className="p-4 rounded-xl bg-[#0D100F] border border-[#222925] space-y-2.5">
+                    <p className="text-sm text-[#D5DDD8] leading-relaxed">{pickText(deckCard.answer, lang)}</p>
                     {deckCard.codeSnippet && (
-                      <pre className="p-3 rounded-lg bg-slate-950 text-xs font-mono text-teal-300 overflow-x-auto">
+                      <pre className="p-3 rounded-lg bg-[#090C0B] text-xs font-mono text-[#00F59B] overflow-x-auto">
                         <code>{deckCard.codeSnippet}</code>
                       </pre>
                     )}
@@ -1036,15 +1073,11 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
                   <button
                     type="button"
                     onClick={() => setDeckFlipped((f) => !f)}
-                    className="min-h-[42px] px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs sm:text-sm font-semibold cursor-pointer"
+                    className="min-h-[40px] px-4 py-2 rounded-md bg-[#00F59B] hover:bg-[#24FFA9] text-[#05130D] font-mono text-xs font-bold cursor-pointer"
                   >
                     {deckFlipped
-                      ? lang === 'en'
-                        ? 'Hide Answer'
-                        : 'Answer Chhupayein'
-                      : lang === 'en'
-                      ? 'Reveal Answer'
-                      : 'Answer Dekhein'}
+                      ? tr('Hide Answer', 'Answer Chhupayein', 'જવાબ છુપાવો')
+                      : tr('Reveal Answer', 'Answer Dekhein', 'જવાબ જુઓ')}
                   </button>
 
                   <div className="flex items-center gap-2">
@@ -1055,9 +1088,9 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
                         setDeckIndex((i) => Math.max(0, i - 1));
                         setDeckFlipped(false);
                       }}
-                      className="min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-xs font-semibold cursor-pointer"
+                      className="min-h-[40px] px-3.5 py-2 rounded-md bg-[#181D1A] border border-[#262E29] hover:border-[#39453E] disabled:opacity-40 font-mono text-xs font-semibold cursor-pointer"
                     >
-                      {lang === 'en' ? 'Prev Card' : 'Pichhla'}
+                      {tr('Prev Card', 'Pichhla', 'પાછળનું')}
                     </button>
                     <button
                       type="button"
@@ -1066,9 +1099,9 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
                         setDeckIndex((i) => Math.min(filteredQa.length - 1, i + 1));
                         setDeckFlipped(false);
                       }}
-                      className="min-h-[42px] px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-xs font-semibold cursor-pointer"
+                      className="min-h-[40px] px-3.5 py-2 rounded-md bg-[#181D1A] border border-[#262E29] hover:border-[#39453E] disabled:opacity-40 font-mono text-xs font-semibold cursor-pointer"
                     >
-                      {lang === 'en' ? 'Next Card' : 'Agla'}
+                      {tr('Next Card', 'Agla', 'આગળનું')}
                     </button>
                   </div>
                 </div>
@@ -1082,9 +1115,9 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
                 return (
                   <div
                     key={qa.id}
-                    className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2.5"
+                    className="p-4 rounded-xl bg-white dark:bg-[#121614] border border-slate-200 dark:border-[#222925] space-y-2.5"
                   >
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-500 dark:text-[#7D8882]">
                       <span>
                         #{idx + 1} · {qa.category}
                       </span>
@@ -1096,27 +1129,23 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
                             [qa.id]: !prev[qa.id],
                           }))
                         }
-                        className="text-teal-700 dark:text-teal-400 font-semibold hover:underline cursor-pointer"
+                        className="text-emerald-700 dark:text-[#00F59B] font-semibold hover:underline cursor-pointer"
                       >
                         {isOpen
-                          ? lang === 'en'
-                            ? 'Hide Answer'
-                            : 'Chhupayein'
-                          : lang === 'en'
-                          ? 'Show Answer'
-                          : 'Answer Dekhein'}
+                          ? tr('Hide Answer', 'Chhupayein', 'જવાબ છુપાવો')
+                          : tr('Show Answer', 'Answer Dekhein', 'જવાબ જુઓ')}
                       </button>
                     </div>
-                    <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-snug">
-                      {qa.question[lang]}
+                    <h4 className="text-sm font-semibold text-slate-900 dark:text-white leading-snug">
+                      {pickText(qa.question, lang)}
                     </h4>
                     {isOpen && (
-                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
-                        <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                          {qa.answer[lang]}
+                      <div className="pt-2 border-t border-slate-100 dark:border-[#1E2420] space-y-2">
+                        <p className="text-xs sm:text-sm text-slate-700 dark:text-[#A4B0AA] leading-relaxed">
+                          {pickText(qa.answer, lang)}
                         </p>
                         {qa.codeSnippet && (
-                          <pre className="p-2.5 rounded-lg bg-slate-950 text-xs font-mono text-teal-300 overflow-x-auto">
+                          <pre className="p-2.5 rounded-lg bg-[#090C0B] text-xs font-mono text-[#00F59B] overflow-x-auto">
                             <code>{qa.codeSnippet}</code>
                           </pre>
                         )}
@@ -1127,7 +1156,6 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
               })}
             </div>
           </section>
-        </div>
       )}
 
       {/* VERIFIED SKILL CARD PNG GENERATOR MODAL */}
@@ -1136,25 +1164,27 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
           role="dialog"
           aria-modal="true"
           aria-labelledby="skill-card-modal-title"
-          className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
         >
-          <div className="max-w-2xl w-full rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-4 shadow-xl max-h-[92vh] overflow-y-auto">
+          <div className="max-w-2xl w-full rounded-xl bg-white dark:bg-[#121614] border border-slate-200 dark:border-[#242B27] p-5 sm:p-6 space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 id="skill-card-modal-title" className="text-lg font-bold text-slate-900 dark:text-slate-50">
-                  {lang === 'en' ? 'Verified Skill & Project Card' : 'Verified Skill & Project Card'}
+                <h2 id="skill-card-modal-title" className="text-lg font-bold text-slate-900 dark:text-white">
+                  {tr('Verified Skill & Project Card', 'Verified Skill & Project Card', 'વેરિફાઇડ સ્કિલ અને પ્રોજેક્ટ કાર્ડ')}
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {lang === 'en'
-                    ? 'Download your proof-of-work PNG card for LinkedIn, WhatsApp, or resumes.'
-                    : 'Apne project ka PNG certificate card download karein aur LinkedIn ya resume par lagayein.'}
+                <p className="text-xs text-slate-500 dark:text-[#8A968F]">
+                  {tr(
+                    'Download your proof-of-work PNG card for LinkedIn, WhatsApp, or resumes.',
+                    'Apne project ka PNG certificate card download karein aur LinkedIn ya resume par lagayein.',
+                    'LinkedIn, WhatsApp અથવા રિઝ્યુમ માટે તમારું પ્રૂફ-ઓફ-વર્ક PNG કાર્ડ ડાઉનલોડ કરો.'
+                  )}
                 </p>
               </div>
               <button
                 type="button"
                 aria-label="Close"
                 onClick={() => setShowSkillCardModal(false)}
-                className="min-h-[40px] min-w-[40px] rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                className="min-h-[40px] min-w-[40px] rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1C221F] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1162,18 +1192,18 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                {lang === 'en' ? 'Your Name on Card' : 'Card par Aapka Naam'}
+                {tr('Your Name on Card', 'Card par Aapka Naam', 'કાર્ડ પર તમારું નામ')}
               </label>
               <input
                 type="text"
                 value={cardLearnerName}
                 onChange={(e) => setCardLearnerName(e.target.value)}
                 maxLength={32}
-                className="w-full min-h-[42px] px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-slate-100"
+                className="w-full min-h-[42px] px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0D100F] border border-slate-200 dark:border-[#242B27] text-sm text-slate-900 dark:text-white"
               />
             </div>
 
-            <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-950">
+            <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-[#242B27] bg-[#090C0B]">
               <canvas ref={canvasRef} width={1200} height={630} className="w-full h-auto block" />
             </div>
 
@@ -1181,24 +1211,20 @@ export const BuildAndGrow: React.FC<BuildAndGrowProps> = ({
               <button
                 type="button"
                 onClick={handleDownloadSkillCard}
-                className="min-h-[44px] px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold inline-flex items-center gap-2 cursor-pointer"
+                className="min-h-[42px] px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 dark:bg-[#00F59B] dark:hover:bg-[#24FFA9] text-white dark:text-[#05130D] font-mono text-xs font-bold inline-flex items-center gap-2 cursor-pointer"
               >
                 <Download className="w-4 h-4" />
-                {lang === 'en' ? 'Download PNG Card' : 'PNG Card Download Karein'}
+                {tr('Download PNG Card', 'PNG Card Download Karein', 'PNG કાર્ડ ડાઉનલોડ કરો')}
               </button>
               <button
                 type="button"
                 onClick={handleCopyShareText}
-                className="min-h-[44px] px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-sm font-semibold inline-flex items-center gap-2 cursor-pointer"
+                className="min-h-[42px] px-4 py-2 rounded-md bg-slate-100 dark:bg-[#181D1A] border border-slate-200 dark:border-[#262E29] text-slate-800 dark:text-slate-100 font-mono text-xs font-semibold inline-flex items-center gap-2 cursor-pointer"
               >
-                {shareCopied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                {shareCopied ? <Check className="w-4 h-4 text-[#00F59B]" /> : <Copy className="w-4 h-4" />}
                 {shareCopied
-                  ? lang === 'en'
-                    ? 'LinkedIn Text Copied!'
-                    : 'Share Text Copy Ho Gaya!'
-                  : lang === 'en'
-                  ? 'Copy LinkedIn / WhatsApp Text'
-                  : 'LinkedIn / WhatsApp Text Copy Karein'}
+                  ? tr('LinkedIn Text Copied!', 'Share Text Copy Ho Gaya!', 'શેર ટેક્સ્ટ કોપી થઈ ગયું!')
+                  : tr('Copy LinkedIn / WhatsApp Text', 'LinkedIn / WhatsApp Text Copy Karein', 'LinkedIn / WhatsApp ટેક્સ્ટ કોપી કરો')}
               </button>
             </div>
           </div>
