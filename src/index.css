@@ -1,12 +1,12 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
-@layer base {
-  :root {
-    --font-sans: 'Plus Jakarta Sans', 'Noto Sans Devanagari', system-ui, -apple-system, sans-serif;
-    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
-  }
+@theme {
+  --font-sans: 'Inter', 'Noto Sans Gujarati', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Share Tech Mono', 'Noto Sans Gujarati', ui-monospace, SFMono-Regular, monospace;
+}
 
+@layer base {
   html {
     font-family: var(--font-sans);
     scroll-behavior: smooth;
@@ -17,6 +17,22 @@
   textarea.code-editor {
     font-family: var(--font-mono);
   }
+}
+
+.bg-tech-grid {
+  background-color: #f5f7f6;
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.dark .bg-tech-grid {
+  background-color: #090c0b;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 40px 40px;
 }
 
 .tabular-nums {
