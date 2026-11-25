@@ -1,19 +1,27 @@
-export type Language = 'en' | 'hi';
+export type Language = 'en' | 'hi' | 'gu';
 export type ThemeMode = 'light' | 'dark';
 export type MainTab = 'home' | 'learn' | 'practice' | 'build' | 'spec';
-export type LearnModule = 'computer' | 'windows-excel' | 'python';
+export type LearnModule = 'computer' | 'windows-excel' | 'python' | 'python-domains';
+export type PythonDomainId = 'data-science' | 'ml-ai' | 'web-apis' | 'web-scraping';
 export type PracticeMode = 'challenges' | 'bughunter' | 'dsa-viz' | 'think-dev';
-export type BuildMode = 'projects' | 'news' | 'career' | 'interview';
+export type BuildMode = 'projects' | 'news' | 'career' | 'cheatsheets' | 'qa';
 
 export interface BilingualText {
   en: string;
   hi: string;
+  gu?: string;
+}
+
+export function pickText(text: BilingualText | undefined, lang: Language): string {
+  if (!text) return '';
+  if (lang === 'gu') return text.gu ?? text.en;
+  return text[lang];
 }
 
 export interface QuizQuestion {
   id: string;
   question: BilingualText;
-  options: { en: string; hi: string }[];
+  options: BilingualText[];
   correctIndex: number;
   explanation: BilingualText;
 }
@@ -225,6 +233,32 @@ export interface BadgeItem {
   };
 }
 
+export interface PythonLibrarySpec {
+  id: string;
+  name: string;
+  pipInstall: string;
+  tagline: BilingualText;
+  whenToUse: BilingualText;
+  indiaExample: BilingualText;
+  keyApis: { api: string; purpose: BilingualText }[];
+  productionCode: string;
+  expectedOutput: string;
+  lineByLine: { line: string; explanation: BilingualText }[];
+  sandboxPrompt: BilingualText;
+  sandboxStarterCode: string;
+  sandboxExpectedOutput: string;
+  quiz: QuizQuestion;
+}
+
+export interface PythonDomainTrack {
+  id: PythonDomainId;
+  goalTitle: BilingualText;
+  topLibrariesSummary: string;
+  primaryPurpose: BilingualText;
+  careerRoles: string[];
+  libraries: PythonLibrarySpec[];
+}
+
 export interface UserProgress {
   xp: number;
   streakDays: number;
@@ -232,6 +266,7 @@ export interface UserProgress {
   completedComputerIds: string[];
   completedWindowsIds: string[];
   completedPythonIds: string[];
+  completedLibraryIds?: string[];
   solvedChallengeIds: string[];
   solvedBugIds: string[];
   downloadedLessonIds: string[];
