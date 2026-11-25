@@ -1,7 +1,7 @@
 // Upgraded offline-first Python 3 subset interpreter + Step-by-Step Execution Tracer
 // Supports variables, expressions, control flow, functions (*args, recursion),
 // OOP classes (__init__, self, inheritance, @property, __str__, __len__),
-// and conversational Hinglish + English beginner-friendly error guidance.
+// and conversational Hinglish (Roman) + Gujarati + English beginner-friendly error guidance.
 
 export interface TraceStep {
   step: number;
@@ -20,7 +20,17 @@ export interface PythonRunResult {
     rawMessage: string;
     friendlyEn: string;
     friendlyHi: string;
+    friendlyGu: string;
   };
+}
+
+export function getFriendlyPythonError(
+  err: NonNullable<PythonRunResult['error']>,
+  lang: 'en' | 'hi' | 'gu'
+): string {
+  if (lang === 'gu') return err.friendlyGu || err.friendlyEn;
+  if (lang === 'hi') return err.friendlyHi || err.friendlyEn;
+  return err.friendlyEn;
 }
 
 class PythonRuntimeError extends Error {
@@ -28,18 +38,21 @@ class PythonRuntimeError extends Error {
   line?: number;
   friendlyEn: string;
   friendlyHi: string;
+  friendlyGu: string;
 
   constructor(
     errorType: string,
     rawMessage: string,
     friendlyEn: string,
     friendlyHi: string,
+    friendlyGu: string,
     line?: number
   ) {
     super(rawMessage);
     this.errorType = errorType;
     this.friendlyEn = friendlyEn;
     this.friendlyHi = friendlyHi;
+    this.friendlyGu = friendlyGu;
     this.line = line;
   }
 }
@@ -168,6 +181,7 @@ function checkBalancedBrackets(code: string) {
               `Unexpected '${ch}' on line ${l + 1}`,
               `Check line ${l + 1}: you have an extra or mismatched '${ch}' bracket.`,
               `Line ${l + 1} check karo: yahan '${ch}' bracket extra ya galat laga hai.`,
+              `લાઇન ${l + 1} તપાસો: અહીં '${ch}' બ્રેકેટ વધારાનો અથવા ખોટો મૂકાયેલો છે.`,
               l + 1
             );
           }
@@ -180,6 +194,7 @@ function checkBalancedBrackets(code: string) {
         `Unterminated string literal on line ${l + 1}`,
         `On line ${l + 1}, you opened a quote (" or ') for text but forgot to close it.`,
         `Line ${l + 1} par aapne text ke liye quote (" ya ') start kiya par end mein close karna bhool gaye.`,
+        `લાઇન ${l + 1} પર તમે ટેક્સ્ટ માટે કોટ (" અથવા ') શરૂ કર્યો પણ અંતે બંધ કરવાનું ભૂલી ગયા છો.`,
         l + 1
       );
     }
@@ -191,6 +206,7 @@ function checkBalancedBrackets(code: string) {
       `Missing closing '${pairs[unclosed.ch]}' for '${unclosed.ch}' opened on line ${unclosed.line}`,
       `You opened '${unclosed.ch}' on line ${unclosed.line}, so Python expects a closing '${pairs[unclosed.ch]}'.`,
       `Line ${unclosed.line} par '${unclosed.ch}' open hua hai, usko close karne ke liye '${pairs[unclosed.ch]}' lagao.`,
+      `લાઇન ${unclosed.line} પર '${unclosed.ch}' ખુલ્યો છે, તેને બંધ કરવા માટે '${pairs[unclosed.ch]}' મૂકો.`,
       unclosed.line
     );
   }
@@ -231,6 +247,7 @@ function parseStatements(code: string): Stmt[] {
           `Unexpected indent on line ${curr.line}`,
           `Line ${curr.line} has extra spaces at the start. Align it cleanly with the lines above.`,
           `Line ${curr.line} ke start mein extra spaces hain. Upar wali lines ke barabar align karo.`,
+          `લાઇન ${curr.line} ની શરૂઆતમાં વધારાની સ્પેસ છે. ઉપરની લાઇનો સાથે બરાબર ગોઠવો.`,
           curr.line
         );
       }
@@ -242,6 +259,7 @@ function parseStatements(code: string): Stmt[] {
           `Missing ':' at the end of line ${curr.line}`,
           `In Python, '${curr.text.split(' ')[0]}' statements must end with a colon ':' on line ${curr.line}.`,
           `Python mein '${curr.text.split(' ')[0]}' line ke end mein colon ':' lagana zaroori hota hai (line ${curr.line}).`,
+          `Python માં '${curr.text.split(' ')[0]}' લાઇનના અંતે કોલન ':' મૂકવું જરૂરી છે (લાઇન ${curr.line}).`,
           curr.line
         );
       }
@@ -254,6 +272,7 @@ function parseStatements(code: string): Stmt[] {
             `Expected an indented block after line ${curr.line}`,
             `After ':' on line ${curr.line}, the next line must be indented (4 spaces to the right).`,
             `Line ${curr.line} par ':' ke baad agli line ko 4 spaces andar (indent) likho.`,
+            `લાઇન ${curr.line} પર ':' પછીની આગલી લાઇન 4 સ્પેસ અંદર (indent) લખવી જરૂરી છે.`,
             curr.line
           );
         }
@@ -276,6 +295,7 @@ function parseStatements(code: string): Stmt[] {
       `Unexpected indent on line ${flat[0].line}`,
       `The first line of code should start at the left edge without extra spaces.`,
       `Code ki first line bina kisi starting space ke left side se start honi chahiye.`,
+      `કોડની પહેલી લાઇન શરૂઆતમાં કોઈ પણ વધારાની સ્પેસ વગર ડાબી બાજુથી શરૂ થવી જોઈએ.`,
       flat[0].line
     );
   }
@@ -376,6 +396,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
             `Missing required argument '${uf.params[i]}'`,
             `Your function needs at least ${uf.params.length} argument(s), but received ${args.length}.`,
             `Function ko ${uf.params.length} inputs chahiye the, par ${args.length} hi mile.`,
+            `તમારા ફંક્શનને ઓછામાં ઓછા ${uf.params.length} ઇનપુટ્સ જોઈએ છે, પણ ${args.length} જ મળ્યા છે.`,
             line
           );
         }
@@ -431,6 +452,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
         `Object is not callable`,
         `Line ${line}: You tried to call something with () that is not a function or class.`,
         `Line ${line}: Aapne () laga kar kisi aisi cheez ko call kiya jo function ya class nahi hai.`,
+        `લાઇન ${line}: તમે () લગાવીને એવી વસ્તુને કોલ કરવાનો પ્રયાસ કર્યો જે ફંક્શન કે ક્લાસ નથી.`,
         line
       );
     }
@@ -443,6 +465,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
         `name '${name}' is not defined`,
         `Variable or function '${name}' on line ${line} hasn't been created yet. Check spelling or assign it first.`,
         `Line ${line} par '${name}' abhi define nahi hua hai. Spelling check karo ya pehle value assign karo.`,
+        `લાઇન ${line} પર '${name}' હજુ ડિફાઇન થયું નથી. સ્પેલિંગ તપાસો અથવા પહેલા વેલ્યુ આપો.`,
         line
       );
     }
@@ -467,6 +490,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
             `'${inst.cls.name}' object has no attribute '${methodCall}'`,
             `Line ${line}: Object '${inst.cls.name}' does not have '${methodCall}'.`,
             `Line ${line}: '${inst.cls.name}' object ke andar '${methodCall}' attribute nahi mila.`,
+            `લાઇન ${line}: '${inst.cls.name}' ઓબ્જેક્ટમાં '${methodCall}' એટ્રિબ્યુટ નથી.`,
             line
           );
         }
@@ -480,6 +504,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
             `'${inst.cls.name}' has no method '${methodName}'`,
             `Line ${line}: Class '${inst.cls.name}' has no method '${methodName}()'.`,
             `Line ${line}: Class '${inst.cls.name}' mein '${methodName}()' method nahi hai.`,
+            `લાઇન ${line}: ક્લાસ '${inst.cls.name}' માં '${methodName}()' મેથડ નથી.`,
             line
           );
         }
@@ -495,6 +520,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
           `Attribute '${methodCall}' not found`,
           `Line ${line}: '${methodCall}' does not exist on this value.`,
           `Line ${line}: Is value par '${methodCall}' attribute maujood nahi hai.`,
+          `લાઇન ${line}: આ વેલ્યુ પર '${methodCall}' એટ્રિબ્યુટ હાજર નથી.`,
           line
         );
       }
@@ -528,7 +554,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
           case 'isupper': return target === target.toUpperCase() && /[A-Z]/.test(target);
           case 'islower': return target === target.toLowerCase() && /[a-z]/.test(target);
           default:
-            throw new PythonRuntimeError('AttributeError', `str has no method '${methodName}'`, `String has no method '${methodName}' on line ${line}.`, `Line ${line}: String mein '${methodName}' method nahi hota.`, line);
+            throw new PythonRuntimeError('AttributeError', `str has no method '${methodName}'`, `String has no method '${methodName}' on line ${line}.`, `Line ${line}: String mein '${methodName}' method nahi hota.`, `લાઇન ${line}: સ્ટ્રિંગમાં '${methodName}' મેથડ હોતી નથી.`, line);
         }
       }
 
@@ -540,7 +566,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
           case 'insert': target.splice(Number(args[0]), 0, args[1]); return null;
           case 'remove': {
             const idx = target.indexOf(args[0]);
-            if (idx === -1) throw new PythonRuntimeError('ValueError', `list.remove(x): x not in list`, `Item not found in list on line ${line}.`, `Line ${line}: Ye item list mein nahi mila.`, line);
+            if (idx === -1) throw new PythonRuntimeError('ValueError', `list.remove(x): x not in list`, `Item not found in list on line ${line}.`, `Line ${line}: Ye item list mein nahi mila.`, `લાઇન ${line}: આ આઇટમ લિસ્ટમાં મળી નથી.`, line);
             target.splice(idx, 1);
             return null;
           }
@@ -551,7 +577,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
           case 'clear': target.length = 0; return null;
           case 'copy': return [...target];
           default:
-            throw new PythonRuntimeError('AttributeError', `list has no method '${methodName}'`, `List has no method '${methodName}' on line ${line}.`, `Line ${line}: List mein '${methodName}' method nahi hota.`, line);
+            throw new PythonRuntimeError('AttributeError', `list has no method '${methodName}'`, `List has no method '${methodName}' on line ${line}.`, `Line ${line}: List mein '${methodName}' method nahi hota.`, `લાઇન ${line}: લિસ્ટમાં '${methodName}' મેથડ હોતી નથી.`, line);
         }
       }
 
@@ -578,7 +604,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
         }
       }
 
-      throw new PythonRuntimeError('AttributeError', `Cannot call '${methodName}'`, `Cannot use '.${methodName}()' on this value on line ${line}.`, `Line ${line}: Is value par '.${methodName}()' kaam nahi karta.`, line);
+      throw new PythonRuntimeError('AttributeError', `Cannot call '${methodName}'`, `Cannot use '.${methodName}()' on this value on line ${line}.`, `Line ${line}: Is value par '.${methodName}()' kaam nahi karta.`, `લાઇન ${line}: આ વેલ્યુ પર '.${methodName}()' વાપરી શકાતું નથી.`, line);
     }
 
     function evalExpr(raw: string, env: Env, line: number): unknown {
@@ -706,6 +732,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
               `can only concatenate str to str`,
               `Line ${line}: You cannot add text (str) and a number directly with '+'. Wrap the number in str(...) or use an f-string.`,
               `Line ${line}: '+' se text aur number ko seedhe nahi jod sakte. Number par str(...) lagao ya f-string use karo.`,
+              `લાઇન ${line}: '+' વડે ટેક્સ્ટ (str) અને નંબરને સીધા જોડી શકાતા નથી. નંબર પર str(...) મૂકો અથવા f-string વાપરો.`,
               line
             );
           }
@@ -731,19 +758,19 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
         }
         if (mulDiv.op === '/') {
           if (Number(right) === 0) {
-            throw new PythonRuntimeError('ZeroDivisionError', 'division by zero', `Line ${line}: You cannot divide a number by 0.`, `Line ${line}: Kisi bhi number ko 0 se divide nahi kar sakte.`, line);
+            throw new PythonRuntimeError('ZeroDivisionError', 'division by zero', `Line ${line}: You cannot divide a number by 0.`, `Line ${line}: Kisi bhi number ko 0 se divide nahi kar sakte.`, `લાઇન ${line}: કોઈપણ સંખ્યાને 0 વડે ભાગી શકાય નહીં.`, line);
           }
           return Number(left) / Number(right);
         }
         if (mulDiv.op === '//') {
           if (Number(right) === 0) {
-            throw new PythonRuntimeError('ZeroDivisionError', 'integer division by zero', `Line ${line}: You cannot divide by 0.`, `Line ${line}: 0 se divide nahi kar sakte.`, line);
+            throw new PythonRuntimeError('ZeroDivisionError', 'integer division by zero', `Line ${line}: You cannot divide by 0.`, `Line ${line}: 0 se divide nahi kar sakte.`, `લાઇન ${line}: 0 વડે ભાગાકાર થઈ શકે નહીં.`, line);
           }
           return Math.floor(Number(left) / Number(right));
         }
         if (mulDiv.op === '%') {
           if (Number(right) === 0) {
-            throw new PythonRuntimeError('ZeroDivisionError', 'modulo by zero', `Line ${line}: Cannot take remainder (%) with 0.`, `Line ${line}: 0 se remainder (%) nahi nikal sakte.`, line);
+            throw new PythonRuntimeError('ZeroDivisionError', 'modulo by zero', `Line ${line}: Cannot take remainder (%) with 0.`, `Line ${line}: 0 se remainder (%) nahi nikal sakte.`, `લાઇન ${line}: 0 વડે શેષ (%) કાઢી શકાય નહીં.`, line);
           }
           return ((Number(left) % Number(right)) + Number(right)) % Number(right);
         }
@@ -837,14 +864,14 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
           let i = Number(idx);
           if (i < 0) i = target.length + i;
           if (i < 0 || i >= target.length) {
-            throw new PythonRuntimeError('IndexError', 'index out of range', `Line ${line}: Position ${idx} does not exist (length is ${target.length}).`, `Line ${line}: Index ${idx} range se bahar hai (total length ${target.length} hai).`, line);
+            throw new PythonRuntimeError('IndexError', 'index out of range', `Line ${line}: Position ${idx} does not exist (length is ${target.length}).`, `Line ${line}: Index ${idx} range se bahar hai (total length ${target.length} hai).`, `લાઇન ${line}: પોઝિશન ${idx} રેન્જની બહાર છે (કુલ લંબાઈ ${target.length} છે).`, line);
           }
           return target[i];
         }
         if (target && typeof target === 'object') {
           const key = String(idx);
           if (!(key in (target as Record<string, unknown>))) {
-            throw new PythonRuntimeError('KeyError', `Key '${key}' not found`, `Line ${line}: Key '${key}' is not in the dictionary.`, `Line ${line}: Dictionary mein '${key}' key nahi mili.`, line);
+            throw new PythonRuntimeError('KeyError', `Key '${key}' not found`, `Line ${line}: Key '${key}' is not in the dictionary.`, `Line ${line}: Dictionary mein '${key}' key nahi mili.`, `લાઇન ${line}: ડિક્શનરીમાં '${key}' કી મળી નથી.`, line);
           }
           return (target as Record<string, unknown>)[key];
         }
@@ -886,6 +913,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
         `Could not understand '${expr}' on line ${line}`,
         `Line ${line}: Check syntax near '${expr}'.`,
         `Line ${line}: '${expr}' ke paas syntax check karo.`,
+        `લાઇન ${line}: '${expr}' પાસે સિન્ટેક્સ તપાસો.`,
         line
       );
     }
@@ -919,14 +947,14 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
         case 'int': {
           const val = Number(String(args[0] ?? '0').trim());
           if (Number.isNaN(val)) {
-            throw new PythonRuntimeError('ValueError', `invalid literal for int()`, `Line ${line}: Cannot convert '${args[0]}' into an integer.`, `Line ${line}: '${args[0]}' ko integer number mein convert nahi kar sakte.`, line);
+            throw new PythonRuntimeError('ValueError', `invalid literal for int()`, `Line ${line}: Cannot convert '${args[0]}' into an integer.`, `Line ${line}: '${args[0]}' ko integer number mein convert nahi kar sakte.`, `લાઇન ${line}: '${args[0]}' ને પૂર્ણાંક (integer) માં બદલી શકાતું નથી.`, line);
           }
           return Math.trunc(val);
         }
         case 'float': {
           const val = parseFloat(String(args[0] ?? '0').trim());
           if (Number.isNaN(val)) {
-            throw new PythonRuntimeError('ValueError', `could not convert string to float`, `Line ${line}: Cannot convert '${args[0]}' into a decimal number.`, `Line ${line}: '${args[0]}' ko decimal (float) mein convert nahi kar sakte.`, line);
+            throw new PythonRuntimeError('ValueError', `could not convert string to float`, `Line ${line}: Cannot convert '${args[0]}' into a decimal number.`, `Line ${line}: '${args[0]}' ko decimal (float) mein convert nahi kar sakte.`, `લાઇન ${line}: '${args[0]}' ને દશાંશ (float) સંખ્યામાં બદલી શકાતું નથી.`, line);
           }
           return val;
         }
@@ -942,7 +970,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
           if (typeof v === 'string' || Array.isArray(v)) return v.length;
           if (v instanceof Set) return v.size;
           if (v && typeof v === 'object') return Object.keys(v as object).length;
-          throw new PythonRuntimeError('TypeError', `object has no len()`, `Line ${line}: len() works on text, lists, sets, or dictionaries.`, `Line ${line}: len() sirf text, list, set ya dictionary par kaam karta hai.`, line);
+          throw new PythonRuntimeError('TypeError', `object has no len()`, `Line ${line}: len() works on text, lists, sets, or dictionaries.`, `Line ${line}: len() sirf text, list, set ya dictionary par kaam karta hai.`, `લાઇન ${line}: len() ફક્ત ટેક્સ્ટ, લિસ્ટ, સેટ અથવા ડિક્શનરી પર જ કામ કરે છે.`, line);
         }
         case 'range': {
           let start = 0;
@@ -1031,13 +1059,13 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
       if (typeof val === 'string') return val.split('');
       if (val instanceof Set) return Array.from(val);
       if (val && typeof val === 'object') return Object.keys(val as object);
-      throw new PythonRuntimeError('TypeError', 'object is not iterable', `Line ${line}: You can only loop over a list, range, string, or dictionary.`, `Line ${line}: Loop sirf list, range, string ya dictionary par chal sakta hai.`, line);
+      throw new PythonRuntimeError('TypeError', 'object is not iterable', `Line ${line}: You can only loop over a list, range, string, or dictionary.`, `Line ${line}: Loop sirf list, range, string ya dictionary par chal sakta hai.`, `લાઇન ${line}: લૂપ ફક્ત લિસ્ટ, range, સ્ટ્રિંગ કે ડિક્શનરી પર જ ચલાવી શકાય.`, line);
     }
 
     function parseDefStatement(stmt: Stmt, env: Env): { fnName: string; fnObj: UserFunc } {
       const match = stmt.text.match(/^def\s+([A-Za-z_]\w*)\s*\((.*)\)\s*:$/);
       if (!match) {
-        throw new PythonRuntimeError('SyntaxError', `Invalid function definition on line ${stmt.line}`, `Check function format on line ${stmt.line}: def my_func(arg):`, `Line ${stmt.line} par function format check karo: def my_func(arg):`, stmt.line);
+        throw new PythonRuntimeError('SyntaxError', `Invalid function definition on line ${stmt.line}`, `Check function format on line ${stmt.line}: def my_func(arg):`, `Line ${stmt.line} par function format check karo: def my_func(arg):`, `લાઇન ${stmt.line} પર ફંક્શન ફોર્મેટ તપાસો: def my_func(arg):`, stmt.line);
       }
       const [, fnName, paramsRaw] = match;
       const paramParts = paramsRaw.trim() ? splitTopLevel(paramsRaw, ',') : [];
@@ -1092,6 +1120,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
             'Infinite loop detected',
             'Your loop ran too many times! Check your while condition or counter so the loop can stop.',
             'Aapka loop bahut zyada baar chal gaya (Infinite loop)! while condition ya counter check karo taaki loop ruk sake.',
+            'તમારું loop ઘણી બધી વાર ચાલી ગયું (Infinite loop)! loop રોકવા માટે while condition અથવા counter તપાસો.',
             stmts[i].line
           );
         }
@@ -1113,7 +1142,14 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
         if (t.startsWith('class ')) {
           const clsMatch = t.match(/^class\s+([A-Za-z_]\w*)(?:\(([A-Za-z_]\w*)\))?\s*:$/);
           if (!clsMatch) {
-            throw new PythonRuntimeError('SyntaxError', `Invalid class definition on line ${stmt.line}`, `Check class format on line ${stmt.line}: class MyClass:`, `Line ${stmt.line} par class syntax check karo: class MyClass:`, stmt.line);
+            throw new PythonRuntimeError(
+              'SyntaxError',
+              `Invalid class definition on line ${stmt.line}`,
+              `Check class format on line ${stmt.line}: class MyClass:`,
+              `Line ${stmt.line} par class syntax check karo: class MyClass:`,
+              `Line ${stmt.line} પર class syntax તપાસો: class MyClass:`,
+              stmt.line
+            );
           }
           const [, clsName, parentName] = clsMatch;
           const parentCls = parentName ? (lookupVar(parentName, env, stmt.line) as PyClass) : undefined;
@@ -1165,7 +1201,14 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
         if (t.startsWith('for ')) {
           const match = t.slice(4, -1).match(/^(.+?)\s+in\s+(.+)$/);
           if (!match) {
-            throw new PythonRuntimeError('SyntaxError', `Invalid for loop on line ${stmt.line}`, `Check your 'for' loop format on line ${stmt.line}: for item in collection:`, `Line ${stmt.line} par 'for' loop format check karo: for item in collection:`, stmt.line);
+            throw new PythonRuntimeError(
+              'SyntaxError',
+              `Invalid for loop on line ${stmt.line}`,
+              `Check your 'for' loop format on line ${stmt.line}: for item in collection:`,
+              `Line ${stmt.line} par 'for' loop format check karo: for item in collection:`,
+              `Line ${stmt.line} પર 'for' loop format તપાસો: for item in collection:`,
+              stmt.line
+            );
           }
           const [, targetStr, iterStr] = match;
           const items = toIterableArray(evalExpr(iterStr, env, stmt.line), stmt.line);
@@ -1195,7 +1238,14 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
           while (isTruthy(evalExpr(cond, env, stmt.line))) {
             stepCount++;
             if (stepCount > MAX_STEPS) {
-              throw new PythonRuntimeError('TimeoutError', 'Infinite while loop', `Line ${stmt.line}: Your while loop never stopped. Make sure the variable inside changes!`, `Line ${stmt.line}: Aapka while loop ruk nahi raha! Loop ke andar variable ko update zaroor karo.`, stmt.line);
+              throw new PythonRuntimeError(
+                'TimeoutError',
+                'Infinite while loop',
+                `Line ${stmt.line}: Your while loop never stopped. Make sure the variable inside changes!`,
+                `Line ${stmt.line}: Aapka while loop ruk nahi raha! Loop ke andar variable ko update zaroor karo.`,
+                `Line ${stmt.line}: તમારું while loop અટકી રહ્યું નથી! Loop ની અંદર variable જરૂર update કરો.`,
+                stmt.line
+              );
             }
             recordTrace(stmt, env);
             try {
@@ -1317,6 +1367,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
           rawMessage: err.message,
           friendlyEn: err.friendlyEn,
           friendlyHi: err.friendlyHi,
+          friendlyGu: err.friendlyGu,
         },
       };
     }
@@ -1329,6 +1380,7 @@ export function runPythonCode(code: string, stdinText = '', collectTrace = false
         rawMessage: msg,
         friendlyEn: 'Something in your code could not run. Check spelling, quotes, colons (:), and indentation.',
         friendlyHi: 'Code run nahi hua — spelling, quotes, colon (:) aur indentation (spaces) check karo.',
+        friendlyGu: 'કોડ ચાલી શક્યો નહીં — સ્પેલિંગ, કોટ્સ, કોલન (:) અને ઇન્ડેન્ટેશન (સ્પેસ) તપાસો.',
       },
     };
   }
