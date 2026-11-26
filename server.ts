@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -6,6 +6,8 @@ import { fetchGeminiTechNews, fetchTechNews } from './server/newsService';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '.env.local') });
+dotenv.config();
 const PORT = Number(process.env.PORT) || 3000;
 
 async function startServer() {

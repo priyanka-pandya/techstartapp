@@ -569,7 +569,7 @@ export default function App() {
                 'લર્નિંગ ડેશબોર્ડ પર પાછા જાઓ'
               )}
             </button>
-            <ProductSpecView lang={lang} />
+            <ProductSpecView />
           </div>
         )}
 

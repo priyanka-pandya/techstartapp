@@ -1,6 +1,6 @@
 import { Language } from '../types';
 
-export const UI_TEXT: Record<Language, {
+interface UIStrings {
   brand: string;
   navHome: string;
   navLearn: string;
@@ -38,6 +38,7 @@ export const UI_TEXT: Record<Language, {
   darkMode: string;
   englishLabel: string;
   hindiLabel: string;
+  gujaratiLabel: string;
   downloadOffline: string;
   savedOffline: string;
   markComplete: string;
@@ -66,7 +67,9 @@ export const UI_TEXT: Record<Language, {
   openSourceNotice: string;
   achievementsBtn: string;
   backupBtn: string;
-}> = {
+}
+
+const UI_TEXT_BY_LANGUAGE: Record<'en' | 'hi', UIStrings> = {
   en: {
     brand: 'TechStart India',
     navHome: 'Home',
@@ -105,6 +108,7 @@ export const UI_TEXT: Record<Language, {
     darkMode: 'Dark',
     englishLabel: 'English',
     hindiLabel: 'Hinglish',
+    gujaratiLabel: 'Gujarati',
     downloadOffline: 'Save Offline',
     savedOffline: 'Saved Offline',
     markComplete: 'Mark Complete',
@@ -172,6 +176,7 @@ export const UI_TEXT: Record<Language, {
     darkMode: 'Dark',
     englishLabel: 'English',
     hindiLabel: 'Hinglish',
+    gujaratiLabel: 'Gujarati',
     downloadOffline: 'Offline Save',
     savedOffline: 'Saved Offline',
     markComplete: 'Complete Mark Karein',
@@ -201,4 +206,9 @@ export const UI_TEXT: Record<Language, {
     achievementsBtn: 'Badges & Rank',
     backupBtn: 'Backup / Restore',
   },
+};
+
+export const UI_TEXT: Record<Language, UIStrings> = {
+  ...UI_TEXT_BY_LANGUAGE,
+  gu: UI_TEXT_BY_LANGUAGE.en,
 };

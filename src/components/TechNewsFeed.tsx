@@ -30,7 +30,7 @@ interface TechNewsFeedProps {
   onOpenFullPulse?: () => void;
 }
 
-const EVERGREEN_CAREER_INSIGHTS: Record<Language, GeminiHeadline[]> = {
+const EVERGREEN_CAREER_INSIGHTS: Record<'en' | 'hi', GeminiHeadline[]> = {
   en: [
     {
       title: 'Why Python + Excel Remains the Fastest Entry Combo for Indian IT & Analyst Jobs',
@@ -196,7 +196,8 @@ export const TechNewsFeed: React.FC<TechNewsFeedProps> = ({ lang, onOpenFullPuls
     }
 
     setDisplayDate(getTodayDisplayDate());
-    setHeadlines(EVERGREEN_CAREER_INSIGHTS[currentLang]);
+    const fallbackLang = currentLang === 'hi' ? 'hi' : 'en';
+    setHeadlines(EVERGREEN_CAREER_INSIGHTS[fallbackLang]);
     setGroundingSources([]);
     setSourceMode('evergreen');
   }, []);
@@ -377,7 +378,7 @@ export const TechNewsFeed: React.FC<TechNewsFeedProps> = ({ lang, onOpenFullPuls
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed">
-            {activeFact[lang]}
+            {activeFact[lang === 'hi' ? 'hi' : 'en']}
           </p>
         </div>
 
